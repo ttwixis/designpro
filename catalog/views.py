@@ -2,21 +2,26 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from .forms import RegisterForm, LoginForm, DesignRequestForm, CategoryForm, ChangeStatusForm
 from .models import User, DesignRequest, Category
 from .decorators import admin_required
 
 
-# главная
+# Главная страница
 def index(request):
     in_progress_count = DesignRequest.objects.filter(status=DesignRequest.STATUS_IN_PROGRESS).count()
     recent_done = DesignRequest.objects.filter(status=DesignRequest.STATUS_DONE).order_by('-created_at')[:4]
-    return render(request, 'index.html', {'in_progress_count': in_progress_count, 'recent_done': recent_done})
+    return render(request, 'index.html', {
+        'in_progress_count': in_progress_count,
+        'recent_done': recent_done,
+    })
 
 
-# регистрация и авторизация
+# Регистрация и авторизация
 def register_view(request):
-    if request.user.is_authenticated: return redirect('index')
+    if request.user.is_authenticated:
+        return redirect('index')
     if request.method == 'POST':
         form = RegisterForm(request.POST)
         if form.is_valid():
@@ -31,7 +36,8 @@ def register_view(request):
 
 
 def login_view(request):
-    if request.user.is_authenticated: return redirect('index')
+    if request.user.is_authenticated:
+        return redirect('index')
     if request.method == 'POST':
         form = LoginForm(request.POST)
         if form.is_valid():
@@ -40,10 +46,10 @@ def login_view(request):
             user = authenticate(request, username=username, password=password)
             if user is not None:
                 login(request, user)
-                if user.is_admin(): return redirect('superadmin_panel')
+                if user.is_admin():
+                    return redirect('superadmin_panel')
                 return redirect('dashboard')
-            else:
-                messages.error(request, 'Неверный логин или пароль.')
+            messages.error(request, 'Неверный логин или пароль.')
     else:
         form = LoginForm()
     return render(request, 'login.html', {'form': form})
@@ -55,17 +61,19 @@ def logout_view(request):
     return redirect('index')
 
 
-# кабинет пользователь
+# Личный кабинет пользователя
 @login_required
 def dashboard_view(request):
     user_requests = request.user.requests.all()
     status_filter = request.GET.get('status')
-    if status_filter:
+    if status_filter in dict(DesignRequest.STATUS_CHOICES):
         user_requests = user_requests.filter(status=status_filter)
+    elif status_filter:
+        status_filter = ''
     return render(request, 'dashboard.html', {
         'requests': user_requests,
         'current_status': status_filter,
-        'status_choices': DesignRequest.STATUS_CHOICES
+        'status_choices': DesignRequest.STATUS_CHOICES,
     })
 
 
@@ -86,23 +94,24 @@ def create_request_view(request):
 
 
 @login_required
+@require_POST
 def delete_request_view(request, pk):
     design_request = get_object_or_404(DesignRequest, pk=pk)
-    if design_request.user != request.user:
+    if design_request.user_id != request.user.id:
         messages.error(request, 'Вы не можете удалить чужую заявку.')
         return redirect('dashboard')
     if design_request.status != DesignRequest.STATUS_NEW:
-        messages.error(request, 'Нельзя удалить заявку, которая уже взята в работу.')
+        messages.error(request, 'Нельзя удалить заявку, которая уже взята в работу или выполнена.')
         return redirect('dashboard')
     design_request.delete()
     messages.success(request, 'Заявка удалена.')
     return redirect('dashboard')
 
 
-# админ панель
+# Панель администратора
 @admin_required
 def superadmin_panel(request):
-    all_requests = DesignRequest.objects.all()
+    all_requests = DesignRequest.objects.select_related('user', 'category').all()
     return render(request, 'superadmin/panel.html', {'requests': all_requests})
 
 
@@ -117,29 +126,37 @@ def change_status(request, pk):
         new_status = request.POST.get('new_status')
         form = ChangeStatusForm(request.POST, request.FILES)
 
-        if new_status == DesignRequest.STATUS_IN_PROGRESS:
-            if not request.POST.get('comment'):
-                messages.error(request, 'Для перевода в работу необходим комментарий.')
+        if not form.is_valid():
+            messages.error(request, 'Проверьте заполнение полей.')
+        elif new_status == DesignRequest.STATUS_IN_PROGRESS:
+            comment = (form.cleaned_data.get('comment') or '').strip()
+            if not comment:
+                form.add_error('comment', 'Для принятия заявки в работу необходимо заполнить комментарий.')
             else:
                 design_request.status = DesignRequest.STATUS_IN_PROGRESS
-                design_request.comment = request.POST.get('comment')
-                design_request.save()
+                design_request.comment = comment
+                design_request.save(update_fields=['status', 'comment'])
                 messages.success(request, 'Заявка принята в работу!')
                 return redirect('superadmin_panel')
-
         elif new_status == DesignRequest.STATUS_DONE:
-            if 'design_image' not in request.FILES:
-                messages.error(request, 'Для завершения работы необходимо прикрепить изображение дизайна.')
-            elif form.is_valid():
+            design_image = form.cleaned_data.get('design_image')
+            if not design_image:
+                form.add_error('design_image', 'Для выполнения заявки необходимо прикрепить изображение дизайна.')
+            else:
                 design_request.status = DesignRequest.STATUS_DONE
-                design_request.design_image = form.cleaned_data['design_image']
-                design_request.save()
+                design_request.design_image = design_image
+                design_request.save(update_fields=['status', 'design_image'])
                 messages.success(request, 'Заявка выполнена!')
                 return redirect('superadmin_panel')
+        else:
+            messages.error(request, 'Выбрано неизвестное действие.')
     else:
         form = ChangeStatusForm()
 
-    return render(request, 'superadmin/change_status.html', {'req': design_request, 'form': form})
+    return render(request, 'superadmin/change_status.html', {
+        'req': design_request,
+        'form': form,
+    })
 
 
 @admin_required
@@ -153,10 +170,14 @@ def manage_categories(request):
             return redirect('manage_categories')
     else:
         form = CategoryForm()
-    return render(request, 'superadmin/categories.html', {'categories': categories, 'form': form})
+    return render(request, 'superadmin/categories.html', {
+        'categories': categories,
+        'form': form,
+    })
 
 
 @admin_required
+@require_POST
 def delete_category(request, pk):
     category = get_object_or_404(Category, pk=pk)
     category.delete()
