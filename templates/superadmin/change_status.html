@@ -6,12 +6,12 @@
             <div class="card-body">
                 <h3 class="card-title">Обработка заявки: {{ req.title }}</h3>
                 <p class="text-muted">Описание: {{ req.description }}</p>
-                <p><img src="{{ req.image.url }}" style="max-height: 200px;" class="img-thumbnail" alt="Фото"></p>
-                
+                <p><img src="{{ req.image.url }}" style="max-height: 200px;" class="img-thumbnail" alt="Фото помещения"></p>
+
                 <hr>
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
-                    
+
                     <div class="mb-4">
                         <label class="fw-bold">Выберите действие:</label>
                         <div class="form-check">
@@ -27,11 +27,13 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Комментарий (для «В работу»)</label>
                         {{ form.comment }}
+                        {{ form.comment.errors }}
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Изображение дизайна (для «Выполнено»)</label>
                         {{ form.design_image }}
+                        {{ form.design_image.errors }}
                     </div>
 
                     <div class="d-flex justify-content-between mt-4">
