@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<!-- шлав банер -->
+<div class="p-5 mb-4 bg-white rounded-3 shadow-sm text-center">
+    <h1 class="display-5 fw-bold">Студия дизайна «Design.pro»</h1>
+    <p class="lead">Создаем уют и красоту в ваших домах. Загрузите план помещения, и наши специалисты предложат лучшие варианты!</p>
+    {% if not user.is_authenticated %}
+        <a href="{% url 'register' %}" class="btn btn-primary btn-lg mt-3">Стать клиентом</a>
+    {% endif %}
+</div>
+
+<!-- счетчик заявок -->
+<div class="alert alert-info shadow-sm text-center mb-5">
+    <h4 class="alert-heading mb-0">Прямо сейчас в работе находится: <strong>{{ in_progress_count }}</strong> заявок</h4>
+</div>
+
+<h3 class="mb-4">Последние выполненные работы</h3>
+<div class="row">
+    {% for req in recent_done %}
+        <div class="col-md-3 mb-4">
+            <div class="card h-100 shadow-sm">
+                {% if req.design_image %}
+                    <img src="{{ req.design_image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="Дизайн">
+                {% else %}
+                    <img src="https://via.placeholder.com/300x200?text=Нет+фото" class="card-img-top" alt="Нет фото">
+                {% endif %}
+
+                <div class="card-body">
+                    <h5 class="card-title">{{ req.title }}</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">Категория: {{ req.category.name }}</h6>
+                    <p class="card-text"><small class="text-muted">Добавлено: {{ req.created_at|date:"d.m.Y" }}</small></p>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="col-12">
+            <div class="alert alert-secondary text-center">Пока нет выполненных заявок. Станьте первым!</div>
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
