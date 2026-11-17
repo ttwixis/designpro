@@ -14,6 +14,7 @@
                     {% csrf_token %}
                     <div class="mb-3">
                         {{ form.name }}
+                        {{ form.name.errors }}
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Добавить</button>
                 </form>
@@ -27,7 +28,10 @@
                     {% for cat in categories %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ cat.name }}
-                            <a href="{% url 'delete_category' cat.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить категорию? ВСЕ заявки этой категории будут удалены!')">Удалить</a>
+                            <form method="post" action="{% url 'delete_category' cat.pk %}" onsubmit="return confirm('Удалить категорию? ВСЕ заявки этой категории будут удалены!')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                            </form>
                         </li>
                     {% empty %}
                         <li class="list-group-item">Категорий нет</li>
